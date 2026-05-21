@@ -12,7 +12,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<Product> _products = [];
+  List<Product> _allProducts = [];
+  List<Product> _filteredProducts = [];
+  List<String> _availableStores = [];
+  String _selectedStore = 'All Stores';
   bool _isLoading = false;
   String? _error;
   bool _hasSearched = false;
@@ -31,11 +34,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLoading = true;
       _error = null;
       _hasSearched = true;
+      _selectedStore = 'All Stores';
     });
 
     try {
       final products = await ApiService.searchProducts(query);
-      // Sort by price (best deal first)
+
+      // Sort by price
       products.sort((a, b) {
         final priceA = _parsePrice(a.price);
         final priceB = _parsePrice(b.price);
@@ -45,8 +50,18 @@ class _HomeScreenState extends State<HomeScreen> {
         return priceA.compareTo(priceB);
       });
 
+      // Extract unique store names
+      final stores = products
+          .where((p) => p.store != null && p.store!.isNotEmpty)
+          .map((p) => p.store!)
+          .toSet()
+          .toList();
+      stores.sort();
+
       setState(() {
-        _products = products;
+        _allProducts = products;
+        _filteredProducts = products;
+        _availableStores = ['All Stores', ...stores];
         _isLoading = false;
       });
     } catch (e) {
@@ -55,6 +70,19 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _filterByStore(String? store) {
+    if (store == null) return;
+    setState(() {
+      _selectedStore = store;
+      if (store == 'All Stores') {
+        _filteredProducts = _allProducts;
+      } else {
+        _filteredProducts =
+            _allProducts.where((p) => p.store == store).toList();
+      }
+    });
   }
 
   double? _parsePrice(String? price) {
@@ -106,7 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search for a product...',
                       hintStyle: TextStyle(color: Colors.grey[400]),
-                      prefixIcon: const Icon(Icons.search, color: Color(0xFF1A2B4A)),
+                      prefixIcon: const Icon(Icons.search,
+                          color: Color(0xFF1A2B4A)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -141,6 +170,76 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+
+          // Store Filter Dropdown
+          if (_hasSearched && !_isLoading && _availableStores.length > 1)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  const Text(
+                    'Filter by store:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF1A2B4A),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF1A2B4A).withOpacity(0.3),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedStore,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down,
+                              color: Color(0xFF1A2B4A)),
+                          style: const TextStyle(
+                            color: Color(0xFF1A2B4A),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          onChanged: _filterByStore,
+                          items: _availableStores.map((store) {
+                            return DropdownMenuItem<String>(
+                              value: store,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    store == 'All Stores'
+                                        ? Icons.store
+                                        : Icons.shopping_bag_outlined,
+                                    size: 16,
+                                    color: const Color(0xFF1A2B4A),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(store),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Results Section
           Expanded(
@@ -209,12 +308,22 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (_products.isEmpty) {
-      return const Center(
-        child: Text(
-          'No products found.\nTry a different search term.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+    if (_filteredProducts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.store_mall_directory_outlined,
+                size: 60, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              _selectedStore == 'All Stores'
+                  ? 'No products found.\nTry a different search term.'
+                  : 'No products found from $_selectedStore.\nTry selecting a different store.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
         ),
       );
     }
@@ -223,11 +332,11 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(
             children: [
               Text(
-                '${_products.length} results',
+                '${_filteredProducts.length} results',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -235,14 +344,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1A2B4A).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Sorted by best price',
-                  style: TextStyle(
+                child: Text(
+                  _selectedStore == 'All Stores'
+                      ? 'Sorted by best price'
+                      : _selectedStore,
+                  style: const TextStyle(
                     color: Color(0xFF1A2B4A),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -255,10 +367,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _products.length,
+            itemCount: _filteredProducts.length,
             itemBuilder: (context, index) {
               return ProductCard(
-                product: _products[index],
+                product: _filteredProducts[index],
                 isBestDeal: index == 0,
               );
             },
