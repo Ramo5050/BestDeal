@@ -4,7 +4,7 @@ import '../models/product.dart';
 
 class ApiService {
   // 🔑 IMPORTANT: Replace this with your actual RapidAPI key
-  static const String _apiKey = 'be655010d4mshf6ee76a2d9f0130p1b8f44jsnd672db8e7f92';
+  static const String _apiKey = 'API_KEY_HERE';
   static const String _baseUrl =
       'https://real-time-product-search.p.rapidapi.com';
 
